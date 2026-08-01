@@ -315,6 +315,57 @@
   font-family: var(--font-mono);
 }
 
+.subheading {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  margin: var(--space-5) 0 var(--space-3);
+}
+
+.manual-bill-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.manual-bill-form .field {
+  margin: 0;
+  min-width: 140px;
+}
+
+.manual-bill-form input,
+.manual-bill-form select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+
+.add-btn {
+  height: 38px;
+}
+
+.btn-remove {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+}
+
+.btn-remove:hover {
+  color: var(--negative);
+}
+
 .month-picker select,
 .month-picker input,
 .field input {

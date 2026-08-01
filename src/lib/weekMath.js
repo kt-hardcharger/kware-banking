@@ -26,6 +26,11 @@ function isoDate(year, month, day) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+/** Rounds to the nearest cent — guards against floating-point drift (e.g. 83625.62999999999). */
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100
+}
+
 /**
  * Amount contributed by the bank checking balance toward this week's
  * available funds, after holding back the threshold ($150).
@@ -36,7 +41,7 @@ function isoDate(year, month, day) {
  * it — Kendric asked to correct that.)
  */
 export function bankThreshold(bankCheckingBalance, threshold) {
-  return bankCheckingBalance - threshold
+  return round2(bankCheckingBalance - threshold)
 }
 
 /**
@@ -46,33 +51,55 @@ export function bankThreshold(bankCheckingBalance, threshold) {
  * import are excluded here; they feed "Other Income" manually instead.
  */
 export function sumBillsForAccount(bills, accountName, startDate, endDate) {
-  return bills
-    .filter(
-      (b) =>
-        b.account_used === accountName &&
-        b.amount < 0 &&
-        b.due_date >= startDate &&
-        b.due_date <= endDate
-    )
-    .reduce((sum, b) => sum + b.amount, 0)
+  return round2(
+    bills
+      .filter(
+        (b) =>
+          b.account_used === accountName &&
+          b.amount < 0 &&
+          b.due_date >= startDate &&
+          b.due_date <= endDate
+      )
+      .reduce((sum, b) => sum + b.amount, 0)
+  )
 }
 
 /** Deposits (positive amounts) for an account in range — shown as a hint for Other Income, not auto-applied. */
 export function sumDepositsForAccount(bills, accountName, startDate, endDate) {
-  return bills
-    .filter(
-      (b) =>
-        b.account_used === accountName &&
-        b.amount > 0 &&
-        b.due_date >= startDate &&
-        b.due_date <= endDate
-    )
-    .reduce((sum, b) => sum + b.amount, 0)
+  return round2(
+    bills
+      .filter(
+        (b) =>
+          b.account_used === accountName &&
+          b.amount > 0 &&
+          b.due_date >= startDate &&
+          b.due_date <= endDate
+      )
+      .reduce((sum, b) => sum + b.amount, 0)
+  )
 }
 
-/** Spreadsheet formula (D30): Available Funds = Bank Threshold + Bank Bills + Other Income. */
+/** Earliest due date among an account's payment rows in the week — null if none. */
+function earliestBillDueDate(bills, accountName, startDate, endDate) {
+  const dates = bills
+    .filter((b) => b.account_used === accountName && b.amount < 0 && b.due_date >= startDate && b.due_date <= endDate)
+    .map((b) => b.due_date)
+  return dates.length ? dates.sort()[0] : null
+}
+
+/**
+ * When money needs to move INTO checking (heloc_to_bank), suggest moving it
+ * by the earliest bank bill due date that week, so the transfer lands before
+ * that bill needs to be covered — instead of always defaulting to the
+ * week's start date. Sweeps the other direction (bank_to_heloc) aren't
+ * covering a due bill, so those keep the week's start date.
+ */
+export function suggestMoveDate({ direction, bills, bankAccountName, startDate, endDate }) {
+  if (direction !== 'heloc_to_bank') return startDate
+  return earliestBillDueDate(bills, bankAccountName, startDate, endDate) ?? startDate
+}
 export function availableFunds(threshold, bankBills, otherIncome) {
-  return threshold + bankBills + otherIncome
+  return round2(threshold + bankBills + otherIncome)
 }
 
 /**
@@ -83,7 +110,7 @@ export function availableFunds(threshold, bankBills, otherIncome) {
 export function transferInstruction(available) {
   return {
     direction: available <= 0 ? 'heloc_to_bank' : 'bank_to_heloc',
-    amount: Math.abs(available),
+    amount: round2(Math.abs(available)),
   }
 }
 
@@ -98,7 +125,7 @@ export function transferInstruction(available) {
 export function endingHelocBalance(beginningBalance, helocBills, transfer) {
   const directBillsDebt = -helocBills // helocBills is <= 0 (payments), so this is the positive debt added
   const transferEffect = transfer.direction === 'heloc_to_bank' ? transfer.amount : -transfer.amount
-  return beginningBalance + directBillsDebt + transferEffect
+  return round2(beginningBalance + directBillsDebt + transferEffect)
 }
 
 /**
@@ -123,6 +150,7 @@ export function computeWeek({
   const available = availableFunds(thresholdAmt, bankBills, otherIncome)
   const transfer = transferInstruction(available)
   const endingBalance = endingHelocBalance(beginningBalance, helocBills, transfer)
+  const moveDate = suggestMoveDate({ direction: transfer.direction, bills, bankAccountName, startDate, endDate })
 
   return {
     thresholdAmt,
@@ -132,6 +160,7 @@ export function computeWeek({
     available,
     transfer,
     endingBalance,
+    moveDate,
   }
 }
 
@@ -143,12 +172,12 @@ export function computeWeek({
  */
 export function computeAllWeeks({ settings, monthRow, weeks, bills }) {
   if (!settings || !monthRow || weeks.length === 0) return []
-  let priorEnding = monthRow.opening_balance
+  let priorEnding = round2(monthRow.opening_balance)
   return weeks
     .slice()
     .sort((a, b) => a.week_number - b.week_number)
     .map((w) => {
-      const beginningBalance = w.beginning_balance_override ?? priorEnding
+      const beginningBalance = round2(w.beginning_balance_override ?? priorEnding)
       const result = computeWeek({
         beginningBalance,
         bankCheckingBalance: w.bank_checking_balance,

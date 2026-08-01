@@ -2,11 +2,9 @@
 
 Weekly HELOC / Credit Card velocity banking tracker. React + Vite, Supabase backend, deployed to GitHub Pages.
 
-## Phase 4 status
+## Layout
 
-Added a "Summary" sub-tab next to "Monthly Tracking" inside HELOC Banking: a balance-over-time line chart plus a table of opening/ending balance and change per month, computed the same way as the week view (so they can never disagree).
-
-Not yet built: the Credit Card module and the final polish pass. Those are Phases 5–6.
+HELOC Banking has 3 tabs: **Weeks** (week tabs, transfer instructions, and the month's bill/income list), **Import** (paste-import and manual add-a-bill-or-income), and **Summary** (balance trend across months). The month picker/New Month button sits above Weeks and Import — pick or create a month there and both tabs stay in sync.
 
 ## Before you run Phase 2 — run the schema SQL
 

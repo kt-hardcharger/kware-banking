@@ -87,6 +87,11 @@ export async function insertBills(monthId, rows) {
   return data
 }
 
+export async function deleteBill(id) {
+  const { error } = await supabase.from('bills').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteBillsForMonth(monthId) {
   const { error } = await supabase.from('bills').delete().eq('month_id', monthId)
   if (error) throw error
