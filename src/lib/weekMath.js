@@ -134,3 +134,33 @@ export function computeWeek({
     endingBalance,
   }
 }
+
+/**
+ * Runs computeWeek() across all 4 weeks of a month in order, chaining each
+ * week's ending balance into the next week's beginning balance (unless a
+ * week has a manual override). Shared by the on-screen calc and the New
+ * Month carry-forward suggestion so they can never drift apart.
+ */
+export function computeAllWeeks({ settings, monthRow, weeks, bills }) {
+  if (!settings || !monthRow || weeks.length === 0) return []
+  let priorEnding = monthRow.opening_balance
+  return weeks
+    .slice()
+    .sort((a, b) => a.week_number - b.week_number)
+    .map((w) => {
+      const beginningBalance = w.beginning_balance_override ?? priorEnding
+      const result = computeWeek({
+        beginningBalance,
+        bankCheckingBalance: w.bank_checking_balance,
+        threshold: settings.threshold,
+        otherIncome: w.other_income,
+        bills,
+        bankAccountName: settings.checking_account_name,
+        helocAccountName: settings.target_account_name,
+        startDate: w.start_date,
+        endDate: w.end_date,
+      })
+      priorEnding = result.endingBalance
+      return { week: w, beginningBalance, ...result }
+    })
+}

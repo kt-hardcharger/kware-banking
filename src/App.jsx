@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import ConnectionStatus from './components/ConnectionStatus'
-import HelocMonthView from './components/HelocMonthView'
+import HelocModule from './components/HelocModule'
 
 const MODULES = {
   heloc: {
@@ -47,7 +47,7 @@ export default function App() {
 
       <main className="main-content">
         {module === 'heloc' ? (
-          <HelocMonthView />
+          <HelocModule />
         ) : (
           <section className="placeholder-card">
             <span className="phase-tag">Phase 5 · Not built yet</span>

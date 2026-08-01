@@ -3,6 +3,7 @@ import {
   getModuleSettings,
   getMonth,
   createMonth,
+  listMonths,
   listWeeks,
   upsertWeek,
   updateWeek,
@@ -11,7 +12,8 @@ import {
   deleteBillsForMonth,
 } from '../lib/db'
 import { parseBillsPaste } from '../lib/billsParser'
-import { getWeekBoundaries, computeWeek } from '../lib/weekMath'
+import { getWeekBoundaries, computeAllWeeks } from '../lib/weekMath'
+import { buildGoogleCalendarUrl } from '../lib/googleCalendar'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -21,15 +23,22 @@ const MONTH_NAMES = [
 const money = (n) =>
   (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+function nextMonthYear(month, year) {
+  return month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year }
+}
+
 export default function HelocMonthView() {
   const now = new Date()
   const [settings, setSettings] = useState(null)
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
   const [monthRow, setMonthRow] = useState(null)
+  const [monthsList, setMonthsList] = useState([])
   const [openingBalanceInput, setOpeningBalanceInput] = useState('0')
+  const [carryForwardNote, setCarryForwardNote] = useState(null)
   const [weeks, setWeeks] = useState([])
   const [bills, setBills] = useState([])
+  const [activeWeekNum, setActiveWeekNum] = useState(1)
   const [pasteText, setPasteText] = useState('')
   const [importMsg, setImportMsg] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -41,8 +50,10 @@ export default function HelocMonthView() {
     try {
       const s = await getModuleSettings('heloc')
       setSettings(s)
-      const existing = await getMonth('heloc', m, y)
+      const [existing, months] = await Promise.all([getMonth('heloc', m, y), listMonths('heloc')])
       setMonthRow(existing)
+      setMonthsList(months)
+      setActiveWeekNum(1)
       if (existing) {
         const [w, b] = await Promise.all([listWeeks(existing.id), listBills(existing.id)])
         setWeeks(w)
@@ -62,6 +73,50 @@ export default function HelocMonthView() {
     loadMonth(month, year)
   }, [loadMonth, month, year])
 
+  function handlePickExistingMonth(monthId) {
+    const m = monthsList.find((row) => row.id === monthId)
+    if (!m) return
+    setCarryForwardNote(null)
+    setMonth(m.month)
+    setYear(m.year)
+  }
+
+  // "New Month": figures out the month after the most recent one on file,
+  // and — if that prior month has HELOC data — suggests its computed
+  // ending balance as the new month's opening balance (still editable).
+  async function handleNewMonth() {
+    setError(null)
+    setCarryForwardNote(null)
+
+    const latest = monthsList[0] // listMonths() sorts newest first
+    const base = latest ?? { month, year }
+    const next = nextMonthYear(base.month, base.year)
+
+    let suggested = 0
+    if (latest) {
+      try {
+        const [s, w, b] = await Promise.all([
+          getModuleSettings('heloc'),
+          listWeeks(latest.id),
+          listBills(latest.id),
+        ])
+        const chain = computeAllWeeks({ settings: s, monthRow: latest, weeks: w, bills: b })
+        if (chain.length > 0) {
+          suggested = chain[chain.length - 1].endingBalance
+          setCarryForwardNote(
+            `Carried forward from ${MONTH_NAMES[latest.month - 1]} ${latest.year}'s ending balance.`
+          )
+        }
+      } catch (e) {
+        setError(e.message)
+      }
+    }
+
+    setOpeningBalanceInput(String(suggested))
+    setMonth(next.month)
+    setYear(next.year)
+  }
+
   async function handleCreateMonth() {
     setError(null)
     try {
@@ -72,6 +127,7 @@ export default function HelocMonthView() {
         opening_balance: Number(openingBalanceInput) || 0,
       })
       setMonthRow(created)
+      setMonthsList((prev) => [created, ...prev])
 
       // Pre-create the 4 weeks with their fixed date boundaries.
       const boundaries = getWeekBoundaries(month, year)
@@ -125,62 +181,49 @@ export default function HelocMonthView() {
 
   // Compute all 4 weeks in order — each week's beginning balance rolls
   // forward from the prior week's ending balance unless overridden.
-  const computed = useMemo(() => {
-    if (!settings || !monthRow || weeks.length === 0) return []
-    let priorEnding = monthRow.opening_balance
-    return weeks
-      .slice()
-      .sort((a, b) => a.week_number - b.week_number)
-      .map((w) => {
-        const beginningBalance = w.beginning_balance_override ?? priorEnding
-        const result = computeWeek({
-          beginningBalance,
-          bankCheckingBalance: w.bank_checking_balance,
-          threshold: settings.threshold,
-          otherIncome: w.other_income,
-          bills,
-          bankAccountName: settings.checking_account_name,
-          helocAccountName: settings.target_account_name,
-          startDate: w.start_date,
-          endDate: w.end_date,
-        })
-        priorEnding = result.endingBalance
-        return { week: w, beginningBalance, ...result }
-      })
-  }, [settings, monthRow, weeks, bills])
+  const computed = useMemo(
+    () => computeAllWeeks({ settings, monthRow, weeks, bills }),
+    [settings, monthRow, weeks, bills]
+  )
+
+  const active = computed.find((c) => c.week.week_number === activeWeekNum)
 
   if (loading) return <p className="dim">Loading…</p>
   if (error) return <p className="error-text">Error: {error}</p>
 
   return (
     <div className="heloc-view">
-      <div className="month-picker">
+      <div className="month-bar">
         <label>
-          Month
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-            {MONTH_NAMES.map((name, i) => (
-              <option key={name} value={i + 1}>
-                {name}
+          View month
+          <select
+            value={monthRow?.id ?? ''}
+            onChange={(e) => (e.target.value ? handlePickExistingMonth(e.target.value) : null)}
+            disabled={monthsList.length === 0}
+          >
+            {monthsList.length === 0 && <option value="">No months yet</option>}
+            {!monthRow && monthsList.length > 0 && (
+              <option value="" disabled>
+                {MONTH_NAMES[month - 1]} {year} (new — not created)
+              </option>
+            )}
+            {monthsList.map((m) => (
+              <option key={m.id} value={m.id}>
+                {MONTH_NAMES[m.month - 1]} {m.year}
               </option>
             ))}
           </select>
         </label>
-        <label>
-          Year
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            style={{ width: 90 }}
-          />
-        </label>
+        <button className="btn-secondary" onClick={handleNewMonth}>
+          + New Month
+        </button>
       </div>
 
       {!monthRow ? (
         <div className="placeholder-card">
           <span className="phase-tag">No data yet for {MONTH_NAMES[month - 1]} {year}</span>
-          <h2>Create this month</h2>
-          <p>Set the opening HELOC balance to start tracking {MONTH_NAMES[month - 1]} {year}.</p>
+          <h2>Create {MONTH_NAMES[month - 1]} {year}</h2>
+          <p>Set the opening HELOC balance to start tracking this month.</p>
           <label className="field">
             Opening HELOC balance
             <input
@@ -189,6 +232,7 @@ export default function HelocMonthView() {
               value={openingBalanceInput}
               onChange={(e) => setOpeningBalanceInput(e.target.value)}
             />
+            {carryForwardNote && <span className="hint">{carryForwardNote}</span>}
           </label>
           <button className="btn-primary" onClick={handleCreateMonth}>
             Create {MONTH_NAMES[month - 1]} {year}
@@ -214,12 +258,28 @@ export default function HelocMonthView() {
             <p className="dim">{bills.length} bill row(s) loaded for this month.</p>
           </section>
 
-          {computed.map(({ week, beginningBalance, thresholdAmt, bankBills, helocBills, depositsHint, available, transfer, endingBalance }) => (
-            <section className="card week-card" key={week.id}>
+          <div className="week-tabs" role="tablist" aria-label="Week">
+            {computed.map(({ week }) => (
+              <button
+                key={week.id}
+                type="button"
+                role="tab"
+                aria-selected={activeWeekNum === week.week_number}
+                className={`week-tab${activeWeekNum === week.week_number ? ' active' : ''}`}
+                onClick={() => setActiveWeekNum(week.week_number)}
+              >
+                Week {week.week_number}
+                {week.transfer_completed && <span className="tab-check">✓</span>}
+              </button>
+            ))}
+          </div>
+
+          {active && (
+            <section className="card week-card">
               <h3>
-                Week {week.week_number}{' '}
+                Week {active.week.week_number}{' '}
                 <span className="dim mono-num">
-                  ({week.start_date} – {week.end_date})
+                  ({active.week.start_date} – {active.week.end_date})
                 </span>
               </h3>
 
@@ -229,10 +289,10 @@ export default function HelocMonthView() {
                   <input
                     type="number"
                     step="0.01"
-                    value={week.beginning_balance_override ?? beginningBalance}
+                    value={active.week.beginning_balance_override ?? active.beginningBalance}
                     onChange={(e) =>
                       handleWeekFieldChange(
-                        week,
+                        active.week,
                         'beginning_balance_override',
                         e.target.value === '' ? null : Number(e.target.value)
                       )
@@ -244,8 +304,8 @@ export default function HelocMonthView() {
                   <input
                     type="number"
                     step="0.01"
-                    value={week.bank_checking_balance}
-                    onChange={(e) => handleWeekFieldChange(week, 'bank_checking_balance', Number(e.target.value))}
+                    value={active.week.bank_checking_balance}
+                    onChange={(e) => handleWeekFieldChange(active.week, 'bank_checking_balance', Number(e.target.value))}
                   />
                 </label>
                 <label className="field">
@@ -253,42 +313,59 @@ export default function HelocMonthView() {
                   <input
                     type="number"
                     step="0.01"
-                    value={week.other_income}
-                    onChange={(e) => handleWeekFieldChange(week, 'other_income', Number(e.target.value))}
+                    value={active.week.other_income}
+                    onChange={(e) => handleWeekFieldChange(active.week, 'other_income', Number(e.target.value))}
                   />
-                  {depositsHint > 0 && (
-                    <span className="hint">Import shows {money(depositsHint)} in deposits this week</span>
+                  {active.depositsHint > 0 && (
+                    <span className="hint">Import shows {money(active.depositsHint)} in deposits this week</span>
                   )}
                 </label>
               </div>
 
               <dl className="week-results">
-                <div><dt>Bank threshold</dt><dd className="mono-num">{money(thresholdAmt)}</dd></div>
-                <div><dt>Bank bills ({settings.checking_account_name})</dt><dd className="mono-num">{money(bankBills)}</dd></div>
-                <div><dt>Available funds</dt><dd className="mono-num">{money(available)}</dd></div>
-                <div><dt>HELOC bills ({settings.target_account_name})</dt><dd className="mono-num">{money(helocBills)}</dd></div>
+                <div><dt>Bank threshold</dt><dd className="mono-num">{money(active.thresholdAmt)}</dd></div>
+                <div><dt>Bank bills ({settings.checking_account_name})</dt><dd className="mono-num">{money(active.bankBills)}</dd></div>
+                <div><dt>Available funds</dt><dd className="mono-num">{money(active.available)}</dd></div>
+                <div><dt>HELOC bills ({settings.target_account_name})</dt><dd className="mono-num">{money(active.helocBills)}</dd></div>
               </dl>
 
               <div className="transfer-row">
                 <span>
-                  Move <strong className="mono-num">{money(transfer.amount)}</strong> from{' '}
-                  {transfer.direction === 'heloc_to_bank' ? 'HELOC → Bank' : 'Bank → HELOC'}
+                  Move <strong className="mono-num">{money(active.transfer.amount)}</strong> from{' '}
+                  {active.transfer.direction === 'heloc_to_bank' ? 'HELOC → Bank' : 'Bank → HELOC'}
                 </span>
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={week.transfer_completed}
-                    onChange={(e) => handleWeekFieldChange(week, 'transfer_completed', e.target.checked)}
-                  />
-                  Completed
-                </label>
+                <div className="transfer-actions">
+                  <a
+                    className="btn-cal"
+                    href={buildGoogleCalendarUrl({
+                      title: `KWARE: Move ${money(active.transfer.amount)} ${
+                        active.transfer.direction === 'heloc_to_bank' ? 'HELOC → Bank' : 'Bank → HELOC'
+                      }`,
+                      dateISO: active.week.start_date,
+                      details: `Week ${active.week.week_number} velocity banking transfer (${active.week.start_date} – ${active.week.end_date}).`,
+                    })}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Add reminder to Google Calendar
+                  </a>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={active.week.transfer_completed}
+                      onChange={(e) => handleWeekFieldChange(active.week, 'transfer_completed', e.target.checked)}
+                    />
+                    Completed
+                  </label>
+                </div>
               </div>
 
               <p className="ending-balance">
-                HELOC balance after Week {week.week_number}: <span className="mono-num">{money(endingBalance)}</span>
+                HELOC balance after Week {active.week.week_number}:{' '}
+                <span className="mono-num">{money(active.endingBalance)}</span>
               </p>
             </section>
-          ))}
+          )}
         </>
       )}
     </div>

@@ -2,11 +2,11 @@
 
 Weekly HELOC / Credit Card velocity banking tracker. React + Vite, Supabase backend, deployed to GitHub Pages.
 
-## Phase 2 status
+## Phase 4 status
 
-HELOC Banking is functional: create a month, paste in your Quicken bill export, and the app auto-splits it into the 4 spreadsheet weeks (1–8, 9–14, 15–22, 23–EOM) with the same math as `August 2026 Velocity Banking.xlsx` — bank threshold, bank bills, available funds, HELOC bills, the transfer instruction, and the rolling ending balance.
+Added a "Summary" sub-tab next to "Monthly Tracking" inside HELOC Banking: a balance-over-time line chart plus a table of opening/ending balance and change per month, computed the same way as the week view (so they can never disagree).
 
-Not yet built: nicer week tabs, the "New Month" carry-forward flow, the month dropdown, the Google Calendar reminder link, the summary tab, and the whole Credit Card module. Those are Phases 3–6.
+Not yet built: the Credit Card module and the final polish pass. Those are Phases 5–6.
 
 ## Before you run Phase 2 — run the schema SQL
 
@@ -70,8 +70,8 @@ https://kt-hardcharger.github.io/kware-banking/
 ## What's next
 
 - ~~Phase 2: Supabase schema (`module_settings`, `months`, `bills`, `weeks`) + bill paste-import + week math~~ done
-- Phase 3: HELOC week tabs, New Month carry-forward flow, month dropdown, Google Calendar link
-- Phase 4: HELOC summary tab
+- ~~Phase 3: HELOC week tabs, New Month carry-forward flow, month dropdown, Google Calendar link~~ done
+- ~~Phase 4: HELOC summary tab~~ done
 - Phase 5: Credit Card module (separate checking account, CSV charge import, weekly spend total)
 - Phase 6: Polish pass
 
