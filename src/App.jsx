@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import ConnectionStatus from './components/ConnectionStatus'
+import HelocMonthView from './components/HelocMonthView'
 
 const MODULES = {
   heloc: {
     label: 'HELOC Banking',
-    blurb:
-      'Weekly HELOC ↔ Checking transfers to pay bills and pay the HELOC down. Bill import, 4-week tabs, and the summary tab land in Phase 2–4.',
   },
   credit_card: {
     label: 'Credit Card Banking',
@@ -47,11 +46,15 @@ export default function App() {
       </header>
 
       <main className="main-content">
-        <section className="placeholder-card">
-          <span className="phase-tag">Phase 1 · Scaffold</span>
-          <h2>{active.label}</h2>
-          <p>{active.blurb}</p>
-        </section>
+        {module === 'heloc' ? (
+          <HelocMonthView />
+        ) : (
+          <section className="placeholder-card">
+            <span className="phase-tag">Phase 5 · Not built yet</span>
+            <h2>{active.label}</h2>
+            <p>{active.blurb}</p>
+          </section>
+        )}
       </main>
     </div>
   )

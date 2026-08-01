@@ -2,11 +2,26 @@
 
 Weekly HELOC / Credit Card velocity banking tracker. React + Vite, Supabase backend, deployed to GitHub Pages.
 
-## Phase 1 status
+## Phase 2 status
 
-This is the scaffold: app shell, module switcher (HELOC / Credit Card), Supabase connectivity check, design tokens, and the deploy pipeline. No banking data or tables yet — that's Phase 2+.
+HELOC Banking is functional: create a month, paste in your Quicken bill export, and the app auto-splits it into the 4 spreadsheet weeks (1–8, 9–14, 15–22, 23–EOM) with the same math as `August 2026 Velocity Banking.xlsx` — bank threshold, bank bills, available funds, HELOC bills, the transfer instruction, and the rolling ending balance.
 
-## One-time setup (do this before anything else)
+Not yet built: nicer week tabs, the "New Month" carry-forward flow, the month dropdown, the Google Calendar reminder link, the summary tab, and the whole Credit Card module. Those are Phases 3–6.
+
+## Before you run Phase 2 — run the schema SQL
+
+Open your Supabase project → **SQL Editor → New query**, paste in the contents of `supabase/2026-08-01-phase2-schema.sql`, and run it. This creates `module_settings`, `months`, `weeks`, and `bills`, and seeds `module_settings` with your HELOC account names from the design doc.
+
+The Credit Card row in `module_settings` is seeded with placeholder account names (`TBD Checking` / `TBD Credit Card`) — update that row once you tell me the real account names, or just leave it until Phase 5.
+
+```sql
+update module_settings
+set checking_account_name = 'your checking account name',
+    target_account_name = 'your credit card name'
+where module = 'credit_card';
+```
+
+## One-time app setup (if you haven't already from Phase 1)
 
 ### 1. Local install
 ```bash
@@ -54,8 +69,15 @@ https://kt-hardcharger.github.io/kware-banking/
 
 ## What's next
 
-- Phase 2: Supabase schema (`accounts`, `months`, `bills`, `weeks`) + bill paste-import + week math
-- Phase 3: HELOC month/week UI, New Month flow, Google Calendar link
+- ~~Phase 2: Supabase schema (`module_settings`, `months`, `bills`, `weeks`) + bill paste-import + week math~~ done
+- Phase 3: HELOC week tabs, New Month carry-forward flow, month dropdown, Google Calendar link
 - Phase 4: HELOC summary tab
 - Phase 5: Credit Card module (separate checking account, CSV charge import, weekly spend total)
 - Phase 6: Polish pass
+
+## A note on the week math
+
+`src/lib/weekMath.js` is based on the formulas in `August 2026 Velocity Banking.xlsx` (Week 1-4 tabs), with two corrections you asked for:
+
+- **Bank Threshold** now treats a checking balance above $150 as a real surplus (adds to available funds) instead of always reserving the full distance from $150 regardless of direction.
+- **Ending HELOC balance** now includes the week's direct HELOC bills as added debt, on top of the sweep transfer — previously those bills were shown but not counted.
