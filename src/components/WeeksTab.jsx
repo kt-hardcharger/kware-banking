@@ -81,12 +81,24 @@ export default function WeeksTab({ heloc }) {
             </label>
           </div>
 
-          <dl className="week-results">
-            <div><dt>Checking buffer</dt><dd className="mono-num">{money(active.thresholdAmt)}</dd></div>
-            <div><dt>Bank bills</dt><dd className="mono-num">{money(active.bankBills)}</dd></div>
-            <div><dt>Available funds</dt><dd className="mono-num">{money(active.available)}</dd></div>
-            <div><dt>HELOC bills</dt><dd className="mono-num">{money(active.helocBills)}</dd></div>
-          </dl>
+          <div className="stat-grid">
+            <div className="stat-field">
+              <span className="stat-label">Checking Balance (before money move)</span>
+              <span className="stat-value mono-num">{money(active.thresholdAmt)}</span>
+            </div>
+            <div className="stat-field">
+              <span className="stat-label">Bank bills</span>
+              <span className="stat-value mono-num">{money(active.bankBills)}</span>
+            </div>
+            <div className="stat-field">
+              <span className="stat-label">Available funds</span>
+              <span className="stat-value mono-num">{money(active.available)}</span>
+            </div>
+            <div className="stat-field">
+              <span className="stat-label">HELOC bills</span>
+              <span className="stat-value mono-num">{money(active.helocBills)}</span>
+            </div>
+          </div>
 
           <div className="transfer-row">
             <span>
