@@ -31,6 +31,12 @@ function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
+/** Cleared/Paid bills are already reflected in the account balance you enter manually, so they're excluded from the math to avoid double-counting — still imported and viewable, just not summed. */
+function isSettledStatus(status) {
+  const s = (status ?? '').trim().toLowerCase()
+  return s === 'cleared' || s === 'paid'
+}
+
 /**
  * Amount contributed by the bank checking balance toward this week's
  * available funds, after holding back the threshold ($150).
@@ -49,6 +55,7 @@ export function bankThreshold(bankCheckingBalance, threshold) {
  *   SUMIFS(Payments, Due >= weekStart, Due <= weekEnd, Account to Use = account)
  * Only sums actual payment rows (negative amounts) — deposit rows in the
  * import are excluded here; they feed "Other Income" manually instead.
+ * Cleared/Paid rows are also excluded (see isSettledStatus above).
  */
 export function sumBillsForAccount(bills, accountName, startDate, endDate) {
   return round2(
@@ -58,13 +65,14 @@ export function sumBillsForAccount(bills, accountName, startDate, endDate) {
           b.account_used === accountName &&
           b.amount < 0 &&
           b.due_date >= startDate &&
-          b.due_date <= endDate
+          b.due_date <= endDate &&
+          !isSettledStatus(b.status)
       )
       .reduce((sum, b) => sum + b.amount, 0)
   )
 }
 
-/** Deposits (positive amounts) for an account in range — shown as a hint for Other Income, not auto-applied. */
+/** Deposits (positive amounts) for an account in range — shown as a hint for Other Income, not auto-applied. Cleared/Paid rows excluded, same as sumBillsForAccount. */
 export function sumDepositsForAccount(bills, accountName, startDate, endDate) {
   return round2(
     bills
@@ -73,16 +81,24 @@ export function sumDepositsForAccount(bills, accountName, startDate, endDate) {
           b.account_used === accountName &&
           b.amount > 0 &&
           b.due_date >= startDate &&
-          b.due_date <= endDate
+          b.due_date <= endDate &&
+          !isSettledStatus(b.status)
       )
       .reduce((sum, b) => sum + b.amount, 0)
   )
 }
 
-/** Earliest due date among an account's payment rows in the week — null if none. */
+/** Earliest due date among an account's unsettled payment rows in the week — null if none. */
 function earliestBillDueDate(bills, accountName, startDate, endDate) {
   const dates = bills
-    .filter((b) => b.account_used === accountName && b.amount < 0 && b.due_date >= startDate && b.due_date <= endDate)
+    .filter(
+      (b) =>
+        b.account_used === accountName &&
+        b.amount < 0 &&
+        b.due_date >= startDate &&
+        b.due_date <= endDate &&
+        !isSettledStatus(b.status)
+    )
     .map((b) => b.due_date)
   return dates.length ? dates.sort()[0] : null
 }

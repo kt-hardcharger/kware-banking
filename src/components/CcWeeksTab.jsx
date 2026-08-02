@@ -4,45 +4,16 @@ import { buildGoogleCalendarUrl } from '../lib/googleCalendar'
 const money = (n) =>
   (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-export default function WeeksTab({ heloc }) {
+export default function CcWeeksTab({ cc }) {
   const [activeWeekNum, setActiveWeekNum] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [accountFilter, setAccountFilter] = useState('All')
-  const { computed, bills, handleWeekFieldChange, deleteBillRow } = heloc
+  const { computed, transactions, handleWeekFieldChange, deleteTransactionRow } = cc
   const active = computed.find((c) => c.week.week_number === activeWeekNum)
 
-  // This week's schedule — bills and income due within the week's date range.
-  const weekBills = useMemo(() => {
+  // This week's card activity — charges and any statement credits dated within the week.
+  const weekTransactions = useMemo(() => {
     if (!active) return []
-    return bills.filter((b) => b.due_date >= active.week.start_date && b.due_date <= active.week.end_date)
-  }, [bills, active])
-
-  const statusOptions = useMemo(() => {
-    const set = new Set(weekBills.map((b) => b.status).filter(Boolean))
-    return ['All', ...Array.from(set).sort()]
-  }, [weekBills])
-
-  const accountOptions = useMemo(() => {
-    const set = new Set(weekBills.map((b) => b.account_used).filter(Boolean))
-    return ['All', ...Array.from(set).sort()]
-  }, [weekBills])
-
-  const filteredWeekBills = useMemo(
-    () =>
-      weekBills.filter(
-        (b) =>
-          (statusFilter === 'All' || b.status === statusFilter) &&
-          (accountFilter === 'All' || b.account_used === accountFilter)
-      ),
-    [weekBills, statusFilter, accountFilter]
-  )
-
-  // Reset filters when the active week changes so a filter from one week doesn't silently hide everything on the next.
-  function selectWeek(num) {
-    setActiveWeekNum(num)
-    setStatusFilter('All')
-    setAccountFilter('All')
-  }
+    return transactions.filter((t) => t.txn_date >= active.week.start_date && t.txn_date <= active.week.end_date)
+  }, [transactions, active])
 
   return (
     <>
@@ -54,7 +25,7 @@ export default function WeeksTab({ heloc }) {
             role="tab"
             aria-selected={activeWeekNum === week.week_number}
             className={`week-tab${activeWeekNum === week.week_number ? ' active' : ''}`}
-            onClick={() => selectWeek(week.week_number)}
+            onClick={() => setActiveWeekNum(week.week_number)}
           >
             Week {week.week_number}
             {week.transfer_completed && <span className="tab-check">✓</span>}
@@ -73,7 +44,7 @@ export default function WeeksTab({ heloc }) {
 
           <div className="week-grid">
             <label className="field">
-              Beginning HELOC balance
+              Beginning card balance
               <input
                 type="number"
                 step="0.01"
@@ -95,9 +66,6 @@ export default function WeeksTab({ heloc }) {
                 value={active.week.bank_checking_balance}
                 onChange={(e) => handleWeekFieldChange(active.week, 'bank_checking_balance', Number(e.target.value))}
               />
-              {active.depositsHint > 0 && (
-                <span className="hint">Import shows {money(active.depositsHint)} in deposits this week</span>
-              )}
             </label>
             <label className="field">
               Other income
@@ -110,43 +78,36 @@ export default function WeeksTab({ heloc }) {
             </label>
           </div>
 
-          <div className="stat-grid">
+          <div className="stat-grid stat-grid-3">
             <div className="stat-field">
               <span className="stat-label">Checking Balance (before money move)</span>
               <span className="stat-value mono-num">{money(active.thresholdAmt)}</span>
-            </div>
-            <div className="stat-field">
-              <span className="stat-label">Bank bills</span>
-              <span className="stat-value mono-num">{money(active.bankBills)}</span>
             </div>
             <div className="stat-field">
               <span className="stat-label">Available funds</span>
               <span className="stat-value mono-num">{money(active.available)}</span>
             </div>
             <div className="stat-field">
-              <span className="stat-label">HELOC bills</span>
-              <span className="stat-value mono-num">{money(active.helocBills)}</span>
+              <span className="stat-label">Card spend this week</span>
+              <span className="stat-value mono-num">{money(active.weekSpend)}</span>
             </div>
           </div>
 
           <div className="transfer-row">
             <span>
               Move <strong className="mono-num">{money(active.transfer.amount)}</strong> from{' '}
-              {active.transfer.direction === 'heloc_to_bank' ? 'HELOC → Bank' : 'Bank → HELOC'}
-              {' '}by <strong>{active.moveDate}</strong>
-              {active.transfer.direction === 'heloc_to_bank' && active.moveDate !== active.week.start_date && (
-                <span className="dim"> (earliest bank bill due date this week)</span>
-              )}
+              {active.transfer.direction === 'cc_to_bank' ? 'Card → Bank' : 'Bank → Card'}
+              {' '}by <strong>{active.week.start_date}</strong>
             </span>
             <div className="transfer-actions">
               <a
                 className="btn-cal"
                 href={buildGoogleCalendarUrl({
                   title: `KWARE: Move ${money(active.transfer.amount)} ${
-                    active.transfer.direction === 'heloc_to_bank' ? 'HELOC → Bank' : 'Bank → HELOC'
+                    active.transfer.direction === 'cc_to_bank' ? 'Card → Bank' : 'Bank → Card'
                   }`,
-                  dateISO: active.moveDate,
-                  details: `Week ${active.week.week_number} velocity banking transfer (${active.week.start_date} – ${active.week.end_date}).`,
+                  dateISO: active.week.start_date,
+                  details: `Week ${active.week.week_number} credit card banking transfer (${active.week.start_date} – ${active.week.end_date}).`,
                 })}
                 target="_blank"
                 rel="noreferrer"
@@ -165,71 +126,42 @@ export default function WeeksTab({ heloc }) {
           </div>
 
           <p className="ending-balance">
-            HELOC balance after Week {active.week.week_number}:{' '}
+            Card balance after Week {active.week.week_number}:{' '}
             <span className="mono-num">{money(active.endingBalance)}</span>
           </p>
         </section>
       )}
 
       <section className="card">
-        <div className="list-header">
-          <h3>
-            {filteredWeekBills.length} of {weekBills.length} bill{weekBills.length === 1 ? '' : 's'}/income row
-            {weekBills.length === 1 ? '' : 's'} this week
-          </h3>
-          <div className="filter-group">
-            <label className="filter-field">
-              Status
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                {statusOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="filter-field">
-              Account
-              <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
-                {accountOptions.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-        {weekBills.length === 0 ? (
-          <p className="dim">Nothing due this week — head to the Import tab to add bills or income.</p>
-        ) : filteredWeekBills.length === 0 ? (
-          <p className="dim">No rows match the current filters.</p>
+        <h3>
+          {weekTransactions.length} transaction{weekTransactions.length === 1 ? '' : 's'} this week
+        </h3>
+        {weekTransactions.length === 0 ? (
+          <p className="dim">Nothing posted this week — head to the Import tab to add charges.</p>
         ) : (
           <table className="summary-table">
             <thead>
               <tr>
-                <th>Due</th>
-                <th>Payee</th>
+                <th>Date</th>
+                <th>Description</th>
                 <th>Amount</th>
-                <th>Account</th>
                 <th>Status</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {filteredWeekBills.map((b) => (
-                <tr key={b.id}>
-                  <td className="dim">{b.due_date}</td>
-                  <td>{b.payee}</td>
-                  <td className={`mono-num ${b.amount < 0 ? '' : 'ok-text'}`}>{money(b.amount)}</td>
-                  <td className="dim">{b.account_used}</td>
-                  <td className="dim">{b.status}</td>
+              {weekTransactions.map((t) => (
+                <tr key={t.id}>
+                  <td className="dim">{t.txn_date}</td>
+                  <td>{t.description}</td>
+                  <td className={`mono-num ${t.amount > 0 ? '' : 'ok-text'}`}>{money(t.amount)}</td>
+                  <td className="dim">{t.status}</td>
                   <td>
                     <button
                       type="button"
                       className="btn-remove"
-                      onClick={() => deleteBillRow(b.id)}
-                      aria-label={`Remove ${b.payee}`}
+                      onClick={() => deleteTransactionRow(t.id)}
+                      aria-label={`Remove ${t.description}`}
                     >
                       ×
                     </button>

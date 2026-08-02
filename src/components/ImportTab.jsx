@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const emptyManualBill = { due_date: '', payee: '', amount: '', account_used: '', type: 'Payment' }
 
 const money = (n) =>
   (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+function toEditDraft(b) {
+  return {
+    due_date: b.due_date,
+    payee: b.payee,
+    amount: String(Math.abs(b.amount)),
+    type: b.amount < 0 ? 'Payment' : 'Deposit',
+    account_used: b.account_used,
+    status: b.status ?? '',
+  }
+}
+
 export default function ImportTab({ heloc }) {
-  const { settings, bills, importBills, addManualBill, deleteBillRow } = heloc
+  const { settings, bills, importBills, addManualBill, deleteBillRow, updateBillRow } = heloc
   const [pasteText, setPasteText] = useState('')
   const [importMsg, setImportMsg] = useState(null)
   const [manualBill, setManualBill] = useState(() => ({
@@ -15,6 +26,19 @@ export default function ImportTab({ heloc }) {
   }))
   const [manualMsg, setManualMsg] = useState(null)
   const [error, setError] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [editingId, setEditingId] = useState(null)
+  const [editDraft, setEditDraft] = useState(null)
+
+  const statusOptions = useMemo(() => {
+    const set = new Set(bills.map((b) => b.status).filter(Boolean))
+    return ['All', ...Array.from(set).sort()]
+  }, [bills])
+
+  const filteredBills = useMemo(
+    () => (statusFilter === 'All' ? bills : bills.filter((b) => b.status === statusFilter)),
+    [bills, statusFilter]
+  )
 
   async function handleImport() {
     setImportMsg(null)
@@ -58,6 +82,40 @@ export default function ImportTab({ heloc }) {
       })
       setManualBill((prev) => ({ ...emptyManualBill, account_used: prev.account_used }))
       setManualMsg({ type: 'ok', text: `Added "${inserted.payee}".` })
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  function startEdit(b) {
+    setEditingId(b.id)
+    setEditDraft(toEditDraft(b))
+    setError(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditDraft(null)
+  }
+
+  async function saveEdit(id) {
+    setError(null)
+    const amountNum = Number(editDraft.amount)
+    if (!editDraft.due_date || !editDraft.payee.trim() || !editDraft.account_used || !amountNum) {
+      setError('Fill in date, payee, amount, and account.')
+      return
+    }
+    const signedAmount = editDraft.type === 'Payment' ? -Math.abs(amountNum) : Math.abs(amountNum)
+    try {
+      await updateBillRow(id, {
+        due_date: editDraft.due_date,
+        payee: editDraft.payee.trim(),
+        amount: signedAmount,
+        account_used: editDraft.account_used,
+        status: editDraft.status.trim() || null,
+      })
+      setEditingId(null)
+      setEditDraft(null)
     } catch (e) {
       setError(e.message)
     }
@@ -135,9 +193,21 @@ export default function ImportTab({ heloc }) {
       </section>
 
       <section className="card">
-        <h3>
-          {bills.length} bill{bills.length === 1 ? '' : 's'}/income row{bills.length === 1 ? '' : 's'} this month
-        </h3>
+        <div className="list-header">
+          <h3>
+            {filteredBills.length} of {bills.length} bill/income row{bills.length === 1 ? '' : 's'} this month
+          </h3>
+          <label className="filter-field">
+            Status
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         {bills.length === 0 ? (
           <p className="dim">Nothing imported or added yet.</p>
         ) : (
@@ -153,25 +223,94 @@ export default function ImportTab({ heloc }) {
               </tr>
             </thead>
             <tbody>
-              {bills.map((b) => (
-                <tr key={b.id}>
-                  <td className="dim">{b.due_date}</td>
-                  <td>{b.payee}</td>
-                  <td className={`mono-num ${b.amount < 0 ? '' : 'ok-text'}`}>{money(b.amount)}</td>
-                  <td className="dim">{b.account_used}</td>
-                  <td className="dim">{b.status}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn-remove"
-                      onClick={() => deleteBillRow(b.id)}
-                      aria-label={`Remove ${b.payee}`}
-                    >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredBills.map((b) =>
+                editingId === b.id ? (
+                  <tr key={b.id} className="editing-row">
+                    <td>
+                      <input
+                        type="date"
+                        value={editDraft.due_date}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, due_date: e.target.value }))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={editDraft.payee}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, payee: e.target.value }))}
+                      />
+                    </td>
+                    <td>
+                      <div className="edit-amount-group">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editDraft.amount}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, amount: e.target.value }))}
+                        />
+                        <select
+                          value={editDraft.type}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, type: e.target.value }))}
+                        >
+                          <option value="Payment">Payment</option>
+                          <option value="Deposit">Deposit</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td>
+                      <select
+                        value={editDraft.account_used}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, account_used: e.target.value }))}
+                      >
+                        {settings && (
+                          <option value={settings.checking_account_name}>{settings.checking_account_name}</option>
+                        )}
+                        {settings && (
+                          <option value={settings.target_account_name}>{settings.target_account_name}</option>
+                        )}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={editDraft.status}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, status: e.target.value }))}
+                        placeholder="e.g. Cleared"
+                      />
+                    </td>
+                    <td className="edit-actions">
+                      <button type="button" className="btn-secondary btn-tiny" onClick={() => saveEdit(b.id)}>
+                        Save
+                      </button>
+                      <button type="button" className="btn-secondary btn-tiny" onClick={cancelEdit}>
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={b.id}>
+                    <td className="dim">{b.due_date}</td>
+                    <td>{b.payee}</td>
+                    <td className={`mono-num ${b.amount < 0 ? '' : 'ok-text'}`}>{money(b.amount)}</td>
+                    <td className="dim">{b.account_used}</td>
+                    <td className="dim">{b.status}</td>
+                    <td className="edit-actions">
+                      <button type="button" className="btn-edit" onClick={() => startEdit(b)} aria-label={`Edit ${b.payee}`}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-remove"
+                        onClick={() => deleteBillRow(b.id)}
+                        aria-label={`Remove ${b.payee}`}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         )}

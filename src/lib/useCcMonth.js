@@ -7,25 +7,23 @@ import {
   listWeeks,
   upsertWeek,
   updateWeek,
-  listBills,
-  insertBills,
-  deleteBill,
-  updateBill,
-  deleteBillsForMonth,
+  listCcTransactions,
+  insertCcTransactions,
+  deleteCcTransaction,
+  deleteCcTransactionsForMonth,
 } from './db'
-import { parseBillsPaste } from './billsParser'
-import { getWeekBoundaries, computeAllWeeks } from './weekMath'
+import { parseCcCsv } from './ccCsvParser'
+import { getWeekBoundaries } from './weekMath'
+import { computeAllCcWeeks } from './ccWeekMath'
+import { MONTH_NAMES } from './useHelocMonth'
 
-export const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
+const MODULE = 'credit_card'
 
 function nextMonthYear(month, year) {
   return month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year }
 }
 
-export function useHelocMonth() {
+export function useCcMonth() {
   const now = new Date()
   const [settings, setSettings] = useState(null)
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -35,7 +33,7 @@ export function useHelocMonth() {
   const [openingBalanceInput, setOpeningBalanceInput] = useState('0')
   const [carryForwardNote, setCarryForwardNote] = useState(null)
   const [weeks, setWeeks] = useState([])
-  const [bills, setBills] = useState([])
+  const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -43,18 +41,18 @@ export function useHelocMonth() {
     setLoading(true)
     setError(null)
     try {
-      const s = await getModuleSettings('heloc')
+      const s = await getModuleSettings(MODULE)
       setSettings(s)
-      const [existing, months] = await Promise.all([getMonth('heloc', m, y), listMonths('heloc')])
+      const [existing, months] = await Promise.all([getMonth(MODULE, m, y), listMonths(MODULE)])
       setMonthRow(existing)
       setMonthsList(months)
       if (existing) {
-        const [w, b] = await Promise.all([listWeeks(existing.id), listBills(existing.id)])
+        const [w, t] = await Promise.all([listWeeks(existing.id), listCcTransactions(existing.id)])
         setWeeks(w)
-        setBills(b)
+        setTransactions(t)
       } else {
         setWeeks([])
-        setBills([])
+        setTransactions([])
       }
     } catch (e) {
       setError(e.message)
@@ -76,8 +74,8 @@ export function useHelocMonth() {
   }
 
   // "New Month": figures out the month after the most recent one on file,
-  // and — if that prior month has HELOC data — suggests its computed
-  // ending balance as the new month's opening balance (still editable).
+  // and — if that prior month has data — suggests its computed ending
+  // card balance as the new month's opening balance (still editable).
   async function handleNewMonth() {
     setError(null)
     setCarryForwardNote(null)
@@ -89,12 +87,12 @@ export function useHelocMonth() {
     let suggested = 0
     if (latest) {
       try {
-        const [s, w, b] = await Promise.all([
-          getModuleSettings('heloc'),
+        const [s, w, t] = await Promise.all([
+          getModuleSettings(MODULE),
           listWeeks(latest.id),
-          listBills(latest.id),
+          listCcTransactions(latest.id),
         ])
-        const chain = computeAllWeeks({ settings: s, monthRow: latest, weeks: w, bills: b })
+        const chain = computeAllCcWeeks({ settings: s, monthRow: latest, weeks: w, transactions: t })
         if (chain.length > 0) {
           suggested = chain[chain.length - 1].endingBalance
           setCarryForwardNote(
@@ -114,7 +112,7 @@ export function useHelocMonth() {
   async function handleCreateMonth() {
     setError(null)
     const created = await createMonth({
-      module: 'heloc',
+      module: MODULE,
       month,
       year,
       opening_balance: Number(openingBalanceInput) || 0,
@@ -122,7 +120,6 @@ export function useHelocMonth() {
     setMonthRow(created)
     setMonthsList((prev) => [created, ...prev])
 
-    // Pre-create the 4 weeks with their fixed date boundaries.
     const boundaries = getWeekBoundaries(month, year)
     const created_weeks = []
     for (const b of boundaries) {
@@ -138,36 +135,30 @@ export function useHelocMonth() {
       created_weeks.push(w)
     }
     setWeeks(created_weeks)
-    setBills([])
+    setTransactions([])
   }
 
-  async function importBills(pasteText) {
-    const { rows, errors } = parseBillsPaste(pasteText)
+  async function importTransactions(csvText) {
+    const { rows, errors } = parseCcCsv(csvText)
     if (rows.length === 0) {
       return { insertedCount: 0, errors, nothingParsed: true }
     }
-    // Replace this month's bills so re-pasting an updated export doesn't duplicate rows.
-    await deleteBillsForMonth(monthRow.id)
-    const inserted = await insertBills(monthRow.id, rows)
-    setBills(inserted)
+    // Replace this month's transactions so re-pasting an updated export doesn't duplicate rows.
+    await deleteCcTransactionsForMonth(monthRow.id)
+    const inserted = await insertCcTransactions(monthRow.id, rows)
+    setTransactions(inserted)
     return { insertedCount: inserted.length, errors, nothingParsed: false }
   }
 
-  async function addManualBill(fields) {
-    const [inserted] = await insertBills(monthRow.id, [fields])
-    setBills((prev) => [...prev, inserted].sort((a, b) => (a.due_date < b.due_date ? -1 : 1)))
+  async function addManualTransaction(fields) {
+    const [inserted] = await insertCcTransactions(monthRow.id, [fields])
+    setTransactions((prev) => [...prev, inserted].sort((a, b) => (a.txn_date < b.txn_date ? -1 : 1)))
     return inserted
   }
 
-  async function deleteBillRow(id) {
-    await deleteBill(id)
-    setBills((prev) => prev.filter((b) => b.id !== id))
-  }
-
-  async function updateBillRow(id, patch) {
-    const updated = await updateBill(id, patch)
-    setBills((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
-    return updated
+  async function deleteTransactionRow(id) {
+    await deleteCcTransaction(id)
+    setTransactions((prev) => prev.filter((t) => t.id !== id))
   }
 
   async function handleWeekFieldChange(week, field, value) {
@@ -176,14 +167,15 @@ export function useHelocMonth() {
     setWeeks((prev) => prev.map((w) => (w.id === updated.id ? updated : w)))
   }
 
-  // Compute all 4 weeks in order — each week's beginning balance rolls
-  // forward from the prior week's ending balance unless overridden.
   const computed = useMemo(
-    () => computeAllWeeks({ settings, monthRow, weeks, bills }),
-    [settings, monthRow, weeks, bills]
+    () => computeAllCcWeeks({ settings, monthRow, weeks, transactions }),
+    [settings, monthRow, weeks, transactions]
   )
 
-  const sortedBills = useMemo(() => bills.slice().sort((a, b) => (a.due_date < b.due_date ? -1 : 1)), [bills])
+  const sortedTransactions = useMemo(
+    () => transactions.slice().sort((a, b) => (a.txn_date < b.txn_date ? -1 : 1)),
+    [transactions]
+  )
 
   return {
     settings,
@@ -195,7 +187,7 @@ export function useHelocMonth() {
     setOpeningBalanceInput,
     carryForwardNote,
     weeks,
-    bills: sortedBills,
+    transactions: sortedTransactions,
     computed,
     loading,
     error,
@@ -203,9 +195,8 @@ export function useHelocMonth() {
     handleNewMonth,
     handleCreateMonth,
     handleWeekFieldChange,
-    importBills,
-    addManualBill,
-    deleteBillRow,
-    updateBillRow,
+    importTransactions,
+    addManualTransaction,
+    deleteTransactionRow,
   }
 }

@@ -32,16 +32,16 @@ export default function MonthBar({ heloc }) {
   )
 }
 
-export function CreateMonthCard({ heloc, onCreate }) {
+export function CreateMonthCard({ heloc, onCreate, targetLabel = 'HELOC' }) {
   const { month, year, openingBalanceInput, setOpeningBalanceInput, carryForwardNote } = heloc
 
   return (
     <div className="placeholder-card">
       <span className="phase-tag">No data yet for {MONTH_NAMES[month - 1]} {year}</span>
       <h2>Create {MONTH_NAMES[month - 1]} {year}</h2>
-      <p>Set the opening HELOC balance to start tracking this month.</p>
+      <p>Set the opening {targetLabel} balance to start tracking this month.</p>
       <label className="field">
-        Opening HELOC balance
+        Opening {targetLabel} balance
         <input
           type="number"
           step="0.01"

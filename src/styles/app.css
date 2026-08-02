@@ -474,6 +474,10 @@
   margin-bottom: var(--space-4);
 }
 
+.stat-grid.stat-grid-3 {
+  grid-template-columns: repeat(3, minmax(max-content, 1fr));
+}
+
 @media (max-width: 900px) {
   .stat-grid {
     grid-template-columns: repeat(2, minmax(max-content, 1fr));
@@ -528,4 +532,121 @@
   color: var(--text-dim);
   font-size: 0.9rem;
   margin: 0;
+}
+
+.file-input {
+  display: block;
+  margin: var(--space-3) 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.file-input::file-selector-button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  margin-right: var(--space-3);
+}
+
+.file-input::file-selector-button:hover {
+  border-color: var(--cc);
+  color: var(--cc);
+}
+
+/* List header with filters (Import tab, Weeks tab bill lists) */
+.list-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.list-header h3 {
+  margin: 0;
+}
+
+.filter-group {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-field select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Inline row editing (Import tab bills table) */
+.editing-row td {
+  padding: var(--space-2);
+}
+
+.editing-row input,
+.editing-row select {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+}
+
+.edit-amount-group {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.btn-edit {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn-edit:hover {
+  border-color: var(--heloc);
+  color: var(--heloc);
+}
+
+.btn-tiny {
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.75rem;
 }

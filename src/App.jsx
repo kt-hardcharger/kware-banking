@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ConnectionStatus from './components/ConnectionStatus'
 import HelocModule from './components/HelocModule'
+import CcModule from './components/CcModule'
 
 const MODULES = {
   heloc: {
@@ -8,14 +9,11 @@ const MODULES = {
   },
   credit_card: {
     label: 'Credit Card Banking',
-    blurb:
-      'Weekly Checking → Credit Card transfers to fund non-bill spending and pay the card to zero. Charge import and weekly spend totals land in Phase 5.',
   },
 }
 
 export default function App() {
   const [module, setModule] = useState('heloc')
-  const active = MODULES[module]
 
   return (
     <div className="app-shell">
@@ -45,17 +43,7 @@ export default function App() {
         <ConnectionStatus />
       </header>
 
-      <main className="main-content">
-        {module === 'heloc' ? (
-          <HelocModule />
-        ) : (
-          <section className="placeholder-card">
-            <span className="phase-tag">Phase 5 · Not built yet</span>
-            <h2>{active.label}</h2>
-            <p>{active.blurb}</p>
-          </section>
-        )}
-      </main>
+      <main className="main-content">{module === 'heloc' ? <HelocModule /> : <CcModule />}</main>
     </div>
   )
 }

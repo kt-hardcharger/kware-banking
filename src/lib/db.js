@@ -92,7 +92,41 @@ export async function deleteBill(id) {
   if (error) throw error
 }
 
+export async function updateBill(id, patch) {
+  const { data, error } = await supabase.from('bills').update(patch).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
 export async function deleteBillsForMonth(monthId) {
   const { error } = await supabase.from('bills').delete().eq('month_id', monthId)
+  if (error) throw error
+}
+
+export async function listCcTransactions(monthId) {
+  const { data, error } = await supabase
+    .from('cc_transactions')
+    .select('*')
+    .eq('month_id', monthId)
+    .order('txn_date', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function insertCcTransactions(monthId, rows) {
+  if (rows.length === 0) return []
+  const payload = rows.map((r) => ({ ...r, month_id: monthId }))
+  const { data, error } = await supabase.from('cc_transactions').insert(payload).select()
+  if (error) throw error
+  return data
+}
+
+export async function deleteCcTransaction(id) {
+  const { error } = await supabase.from('cc_transactions').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteCcTransactionsForMonth(monthId) {
+  const { error } = await supabase.from('cc_transactions').delete().eq('month_id', monthId)
   if (error) throw error
 }

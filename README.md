@@ -4,13 +4,16 @@ Weekly HELOC / Credit Card velocity banking tracker. React + Vite, Supabase back
 
 ## Layout
 
-HELOC Banking has 3 tabs: **Weeks** (week tabs, transfer instructions, and the month's bill/income list), **Import** (paste-import and manual add-a-bill-or-income), and **Summary** (balance trend across months). The month picker/New Month button sits above Weeks and Import — pick or create a month there and both tabs stay in sync.
+Both modules have 3 tabs: **Weeks** (week tabs, transfer instructions, and the week's bill/transaction list), **Import** (bring in bills/income or card transactions, plus manual add), and **Summary** (balance trend across months). The month picker/New Month button sits above Weeks and Import — pick or create a month there and both tabs stay in sync.
 
-## Before you run Phase 2 — run the schema SQL
+## Before you run this — run the schema SQL
 
-Open your Supabase project → **SQL Editor → New query**, paste in the contents of `supabase/2026-08-01-phase2-schema.sql`, and run it. This creates `module_settings`, `months`, `weeks`, and `bills`, and seeds `module_settings` with your HELOC account names from the design doc.
+Run both, in order, in your Supabase project's **SQL Editor → New query**:
 
-The Credit Card row in `module_settings` is seeded with placeholder account names (`TBD Checking` / `TBD Credit Card`) — update that row once you tell me the real account names, or just leave it until Phase 5.
+1. `supabase/2026-08-01-phase2-schema.sql` — `module_settings`, `months`, `weeks`, `bills`. Seeds `module_settings` with your HELOC account names, and placeholder names for the Credit Card row.
+2. `supabase/2026-08-01-phase5-cc-schema.sql` — adds `cc_transactions` for the Credit Card module's imported charges.
+
+**Update the Credit Card placeholder account names** before using that module — it still says `TBD Checking` / `TBD Credit Card`:
 
 ```sql
 update module_settings
@@ -70,7 +73,7 @@ https://kt-hardcharger.github.io/kware-banking/
 - ~~Phase 2: Supabase schema (`module_settings`, `months`, `bills`, `weeks`) + bill paste-import + week math~~ done
 - ~~Phase 3: HELOC week tabs, New Month carry-forward flow, month dropdown, Google Calendar link~~ done
 - ~~Phase 4: HELOC summary tab~~ done
-- Phase 5: Credit Card module (separate checking account, CSV charge import, weekly spend total)
+- ~~Phase 5: Credit Card module (separate checking account, CSV charge import, weekly spend total)~~ done
 - Phase 6: Polish pass
 
 ## A note on the week math
@@ -79,3 +82,13 @@ https://kt-hardcharger.github.io/kware-banking/
 
 - **Bank Threshold** now treats a checking balance above $150 as a real surplus (adds to available funds) instead of always reserving the full distance from $150 regardless of direction.
 - **Ending HELOC balance** now includes the week's direct HELOC bills as added debt, on top of the sweep transfer — previously those bills were shown but not counted.
+
+## A note on the Credit Card module's math
+
+`src/lib/ccWeekMath.js` reuses the HELOC module's threshold/available-funds math directly (same shared functions), since the mechanics are the same shape — sweep money between Checking and a debt account, holding back $150. The differences: there's no bill import for this module's checking account (per your description, it's just checking balance + income vs. the $150 threshold, no bills to subtract), and instead of HELOC bills feeding the target account's debt each week, it's the week's card charges from the imported CSV (credit/payment rows in that CSV are excluded from the math — they'd double-count the transfer the app already computes).
+
+## 8/2 changes
+
+- **Import tab**: bills/income rows are now editable inline (Edit → Save/Cancel), and there's a Status filter above the list — set it to "Cleared" or "Paid" to view just those.
+- **Weeks tab**: added Status and Account filters above each week's bill list (filters reset when you switch weeks).
+- **Math**: bills with status "Cleared" or "Paid" are now excluded from Bank bills / HELOC bills / Available funds / the move-date suggestion — those are already reflected in the balance you enter manually, so including them would double-count. They're still imported and visible, just not summed. This applies to the HELOC module only (per your call) — Credit Card charges aren't affected.
