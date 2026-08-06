@@ -1,10 +1,9 @@
 // Credit Card module weekly math. Structurally the same shape as
 // src/lib/weekMath.js: sweep money between Checking and the target debt
 // account (the credit card here, the HELOC there), holding back a $150
-// threshold. The one real difference is what feeds the target account's
-// direct debt each week — HELOC bills paid straight off the HELOC there,
-// this week's card charges here (from the imported CSV) instead of a bill
-// import, since this module has no bills of its own.
+// threshold. Unlike the HELOC module, this week's card charges (from the
+// imported CSV) are shown for reference only and do not feed the ending
+// balance — only the sweep transfer does.
 
 import { bankThreshold, availableFunds } from './weekMath'
 
@@ -33,10 +32,14 @@ export function ccTransferInstruction(available) {
   }
 }
 
-/** End-of-week card balance = beginning + this week's charges, plus/minus the sweep transfer. */
-export function endingCcBalance(beginningBalance, weekSpend, transfer) {
+/**
+ * End-of-week card balance = beginning balance, plus/minus the sweep
+ * transfer only. "Card spend this week" is shown for reference but does
+ * not feed into this — Kendric asked to keep those separate.
+ */
+export function endingCcBalance(beginningBalance, transfer) {
   const transferEffect = transfer.direction === 'cc_to_bank' ? transfer.amount : -transfer.amount
-  return round2(beginningBalance + weekSpend + transferEffect)
+  return round2(beginningBalance + transferEffect)
 }
 
 export function computeCcWeek({
@@ -52,7 +55,7 @@ export function computeCcWeek({
   const weekSpend = sumChargesInRange(transactions, startDate, endDate)
   const available = availableFunds(thresholdAmt, 0, otherIncome) // no bills for this module
   const transfer = ccTransferInstruction(available)
-  const endingBalance = endingCcBalance(beginningBalance, weekSpend, transfer)
+  const endingBalance = endingCcBalance(beginningBalance, transfer)
 
   return { thresholdAmt, weekSpend, available, transfer, endingBalance }
 }

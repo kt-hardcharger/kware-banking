@@ -88,7 +88,7 @@ export default function CcWeeksTab({ cc }) {
               <span className="stat-value mono-num">{money(active.available)}</span>
             </div>
             <div className="stat-field">
-              <span className="stat-label">Card spend this week</span>
+              <span className="stat-label">Total spent this week</span>
               <span className="stat-value mono-num">{money(active.weekSpend)}</span>
             </div>
           </div>

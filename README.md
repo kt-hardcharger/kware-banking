@@ -85,7 +85,7 @@ https://kt-hardcharger.github.io/kware-banking/
 
 ## A note on the Credit Card module's math
 
-`src/lib/ccWeekMath.js` reuses the HELOC module's threshold/available-funds math directly (same shared functions), since the mechanics are the same shape — sweep money between Checking and a debt account, holding back $150. The differences: there's no bill import for this module's checking account (per your description, it's just checking balance + income vs. the $150 threshold, no bills to subtract), and instead of HELOC bills feeding the target account's debt each week, it's the week's card charges from the imported CSV (credit/payment rows in that CSV are excluded from the math — they'd double-count the transfer the app already computes).
+`src/lib/ccWeekMath.js` reuses the HELOC module's threshold/available-funds math directly (same shared functions), since the mechanics are the same shape — sweep money between Checking and a debt account, holding back $150. The differences: there's no bill import for this module's checking account (per your description, it's just checking balance + income vs. the $150 threshold, no bills to subtract), and the week's card spend (from the imported CSV, charges only — credit/payment rows are excluded since they'd double-count the app's own computed transfer) is shown for reference only and does not feed the ending balance — only the sweep transfer does.
 
 ## 8/2 changes
 

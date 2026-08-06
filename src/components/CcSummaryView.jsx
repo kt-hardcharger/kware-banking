@@ -27,6 +27,7 @@ export default function CcSummaryView() {
             const [weeks, transactions] = await Promise.all([listWeeks(m.id), listCcTransactions(m.id)])
             const chain = computeAllCcWeeks({ settings, monthRow: m, weeks, transactions })
             const endingBalance = chain.length ? chain[chain.length - 1].endingBalance : m.opening_balance
+            const totalSpent = transactions.filter((t) => t.amount > 0).reduce((sum, t) => sum + t.amount, 0)
             return {
               id: m.id,
               month: m.month,
@@ -34,6 +35,7 @@ export default function CcSummaryView() {
               opening: m.opening_balance,
               ending: endingBalance,
               delta: endingBalance - m.opening_balance,
+              totalSpent,
               weeksTracked: chain.length,
             }
           })
@@ -68,6 +70,7 @@ export default function CcSummaryView() {
 
   const points = rows.map((r) => ({ label: `${MONTH_ABBR[r.month - 1]} ${String(r.year).slice(2)}`, value: r.ending }))
   const netChange = rows[rows.length - 1].ending - rows[0].opening
+  const totalSpentAllTime = rows.reduce((sum, r) => sum + r.totalSpent, 0)
 
   return (
     <div className="heloc-view">
@@ -79,6 +82,7 @@ export default function CcSummaryView() {
           <span className={netChange <= 0 ? 'ok-text' : 'error-text'}>{money(netChange)}</span>
           {' '}({netChange <= 0 ? 'balance went down' : 'balance went up'})
         </p>
+        <p className="dim">Total spent across all tracked months: <span className="mono-num">{money(totalSpentAllTime)}</span></p>
       </section>
 
       <section className="card">
@@ -90,6 +94,7 @@ export default function CcSummaryView() {
               <th>Opening</th>
               <th>Ending</th>
               <th>Change</th>
+              <th>Total spent</th>
               <th>Weeks tracked</th>
             </tr>
           </thead>
@@ -106,6 +111,7 @@ export default function CcSummaryView() {
                     {r.delta <= 0 ? '' : '+'}
                     {money(r.delta)}
                   </td>
+                  <td className="mono-num">{money(r.totalSpent)}</td>
                   <td className="dim">{r.weeksTracked}/4</td>
                 </tr>
               ))}
