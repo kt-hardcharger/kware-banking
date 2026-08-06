@@ -7,10 +7,15 @@ const MONTH_ABBR = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
 const money = (n) =>
   (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-export default function CcSummaryView() {
+export default function CcSummaryView({ selectedMonth, selectedYear }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState(null)
 
@@ -71,9 +76,41 @@ export default function CcSummaryView() {
   const points = rows.map((r) => ({ label: `${MONTH_ABBR[r.month - 1]} ${String(r.year).slice(2)}`, value: r.ending }))
   const netChange = rows[rows.length - 1].ending - rows[0].opening
   const totalSpentAllTime = rows.reduce((sum, r) => sum + r.totalSpent, 0)
+  const selectedRow = rows.find((r) => r.month === selectedMonth && r.year === selectedYear)
 
   return (
     <div className="heloc-view">
+      {selectedRow && (
+        <section className="card">
+          <h3>
+            {MONTH_NAMES[selectedRow.month - 1]} {selectedRow.year}{' '}
+            <span className="dim mono-num">(currently viewing)</span>
+          </h3>
+          <div className="stat-grid">
+            <div className="stat-field">
+              <span className="stat-label">Opening balance</span>
+              <span className="stat-value mono-num">{money(selectedRow.opening)}</span>
+            </div>
+            <div className="stat-field">
+              <span className="stat-label">Ending balance</span>
+              <span className="stat-value mono-num">{money(selectedRow.ending)}</span>
+            </div>
+            <div className="stat-field">
+              <span className="stat-label">Change</span>
+              <span className={`stat-value mono-num ${selectedRow.delta <= 0 ? 'ok-text' : 'error-text'}`}>
+                {selectedRow.delta <= 0 ? '' : '+'}
+                {money(selectedRow.delta)}
+              </span>
+            </div>
+            <div className="stat-field">
+              <span className="stat-label">Total spent</span>
+              <span className="stat-value mono-num">{money(selectedRow.totalSpent)}</span>
+            </div>
+          </div>
+          <p className="dim">{selectedRow.weeksTracked}/4 weeks tracked</p>
+        </section>
+      )}
+
       <section className="card">
         <h3>Card balance over time</h3>
         <Sparkline points={points} stroke="var(--cc)" />
@@ -103,7 +140,7 @@ export default function CcSummaryView() {
               .slice()
               .reverse()
               .map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className={r.id === selectedRow?.id ? 'selected-row' : undefined}>
                   <td>{MONTH_ABBR[r.month - 1]} {r.year}</td>
                   <td className="mono-num">{money(r.opening)}</td>
                   <td className="mono-num">{money(r.ending)}</td>

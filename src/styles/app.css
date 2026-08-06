@@ -309,6 +309,15 @@
   border-bottom: 1px solid var(--border-soft);
 }
 
+.summary-table tr.selected-row td {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.summary-table tr.selected-row td:first-child {
+  box-shadow: inset 3px 0 0 var(--focus);
+}
+
 .spark-label {
   fill: var(--text-faint);
   font-size: 10px;

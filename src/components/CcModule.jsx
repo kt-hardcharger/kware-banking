@@ -31,7 +31,7 @@ export default function CcModule() {
       </div>
 
       {tab === 'summary' ? (
-        <CcSummaryView />
+        <CcSummaryView selectedMonth={cc.month} selectedYear={cc.year} />
       ) : cc.loading ? (
         <p className="dim">Loading…</p>
       ) : cc.error ? (

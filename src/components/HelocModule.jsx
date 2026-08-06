@@ -31,7 +31,7 @@ export default function HelocModule() {
       </div>
 
       {tab === 'summary' ? (
-        <HelocSummaryView />
+        <HelocSummaryView selectedMonth={heloc.month} selectedYear={heloc.year} />
       ) : heloc.loading ? (
         <p className="dim">Loading…</p>
       ) : heloc.error ? (
